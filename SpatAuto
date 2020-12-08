@@ -1,0 +1,69 @@
+###SPATIAL AUTOCORRELATION#######
+vri.nb.HT <- poly2nb(vriCleanStand_HT)
+vri.net.HT <- nb2lines(vri.nb.HT, coords=coordinates(vriClean))
+crs(vri.net.HT) <- crs(vriClean)
+
+tm_shape(vriCleanStand_HT) + tm_borders(col='lightgrey') + 
+  tm_shape(vri.net.HT) + tm_lines(col='yellow')
+
+vri.nb2.HT <- poly2nb(vriCleanStand_HT, queen = FALSE)
+vri.net2.HT <- nb2lines(vri.nb2.HT, coords=coordinates(vriClean))
+crs(vri.net2.HT) <- crs(vriClean)
+
+tm_shape(vriClean) + tm_borders(col='lightgrey') + 
+  tm_shape(vri.net.HT) + tm_lines(col='blue', lwd = 2) +
+  tm_shape(vri.net2.HT) + tm_lines(col='yellow', lwd = 2)
+
+########################
+vri.queen <- nb2listw(vri.nb.HT, zero.policy = TRUE, style = "W")
+print.listw(vri.queen, zero.policy = TRUE)
+########################
+mi <- moran.test(vriClean$Stand_HT, vri.queen, zero.policy = TRUE)
+mi
+
+moran.range <- function(lw) {
+  wmat <- listw2mat(lw)
+  return(range(eigen((wmat + t(wmat))/2)$values))
+}
+moran.range(vri.queen)
+
+
+mI <- mi$estimate[[1]]
+eI <- mi$estimate[[2]]
+var <- mi$estimate[[3]]
+
+z <- (mI - eI) / (sqrt(var))
+
+########################  
+lisa.test <- localmoran(vriClean$Stand_HT, vri.queen, zero.policy = TRUE)
+
+vriClean$Ii <- lisa.test[,1]
+vriClean$E.Ii<- lisa.test[,2]
+vriClean$Var.Ii<- lisa.test[,3]
+vriClean$Z.Ii<- lisa.test[,4]
+vriClean$P<- lisa.test[,5]
+########################
+map_LISA <- tm_shape(vriClean) + 
+  tm_polygons(col = "Z.Ii", 
+              title = "Z score of Local Moran's I", 
+              style = "jenks", 
+              palette = "viridis", n = 6) + 
+  tm_compass(type="arrow", position=c("right", "top"), show.labels = 3)+
+  tm_scale_bar(position=c("right", "bottom"))
+map_LISA
+
+moran.plot(vriClean$Stand_HT, vri.queen, zero.policy=TRUE, spChk=NULL, labels=NULL, xlab="Stand Height", 
+           ylab="Spatially Lagged Stand Height", quiet=NULL)
+##Spatial Autocorrelation Stats##
+data.for.table3 = data.frame(samples, mI, eI, var, z)
+table3 <- tableGrob(data.for.table3, rows = c("",""))
+t3Caption <- textGrob("Table 3: Spatial Autocorrelation Stats", gp = gpar(fontsize = 09))
+padding <- unit(5, "mm")
+
+table3 <- gtable_add_rows(table3, 
+                          heights = grobHeight(t3Caption) + padding, 
+                          pos = 0)
+
+table3 <- gtable_add_grob(table3,
+                          t3Caption, t = 1, l = 2, r = ncol(data.for.table2) + 1)
+grid.arrange(table3, newpage = TRUE)
