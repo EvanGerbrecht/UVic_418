@@ -1,0 +1,65 @@
+library("spatstat")
+library("rgdal")
+library("maptools")
+library("raster")
+library("sp")
+library("plyr")
+library("lubridate")
+#check for and remove duplicated points
+#first, finds zero distance among points to see if there are any duplicates
+elevation <- zerodist(vriClean2$Elev)
+elevation
+
+#if there are duplicates, remove them
+tf <- remove.duplicates(elevation)
+plot(VanCrimePoints, add = TRUE)
+plot(VanCity)
+
+#create an "extent" object which can be used to create the observation window for spatstat
+ele.ext <- as.matrix(extent(elevation)) 
+
+#observation window
+ele.window <- as.owin(list(xrange = ele.ext[1,], yrange = ele.ext[2,]))
+
+#create ppp oject from spatstat
+ele.ppp <- ppp(x = ele$x, y = ele$y, window = ele.window)
+
+#######NND########
+
+nearestNeighbour.ele <- nndist(ele.ppp)
+
+##Convert the nearestNeighbor object into a dataframe.
+nearestNeighbour.ele=as.data.frame(as.numeric(nearestNeighbour.ele))
+##Change the column name to "Distance"
+colnames(nearestNeighbour.ele) = "Distance"
+
+
+##Calculate the nearest neighbor statistic to test for a random spatial distribution.
+#mean nearest neighbour
+nnd = (sum(nearestNeighbour.ele$Distance))/5953
+
+#mean nearest neighbour for random spatial distribution
+
+studyArea <- sum(area(vriClean))/1000000
+pointDensity <- 5953/studyArea
+
+r.nnd = 1/(2*sqrt(pointDensity))
+
+d.nnd = nnd/sqrt(pointDensity)
+
+R = nnd/r.nnd
+
+SE.NND <- 0.26136/(5953*pointDensity)
+
+z = nnd-r.nnd/SE.NND
+
+
+#####
+##K-FUNCTION 
+#basic k-function
+ele.fun <- Kest(ele.ppp, correction = "Ripley")
+plot(ele.fun)
+
+#use simulation to test the point pattern against CSR
+k.fun.e <- envelope(ber.ppp, Kest, nsim = 95, correction = "Ripley")
+plot(k.fun.e)
