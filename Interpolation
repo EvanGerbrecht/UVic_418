@@ -1,0 +1,91 @@
+
+#Create a grid called grd to use in your interpolation
+# Create an empty grid where n is the total number of cells
+grd <- as.data.frame(spsample(elev, "regular", n=50000))
+names(grd)       <- c("X", "Y")
+coordinates(grd) <- c("X", "Y")
+gridded(grd)     <- TRUE  # Create SpatialPixel object
+fullgrid(grd)    <- TRUE  # Create SpatialGrid object
+proj4string(grd) <- proj4string(elev)
+##################################################
+head(elev)
+mean.elev = aggregate(grid_code ~ site, elev, mean)
+
+#Join the mean and max ozone values to their respective monitoring stations. In doing so, you will need to rename the 
+#first column of the monitoring data to site in order to have a unique name to match the two datasets.
+names(vriClean)[1] ="site"
+
+#Merge the the monitoring station shapefile with the ozone data using the site column.  
+mrg.elev.mean <- sp::merge(vriClean, mean.elev, by = "site", all.x = FALSE) 
+
+#Create a max and a mean spatialPointDataFrame. 
+pm25.mean.spdf = na.omit(mrg.tab.mean)
+pm25.max.spdf = na.omit(mrg.tab.max)
+
+#IDW Interpolation
+P.idw <- gstat::idw(grid_code ~ 1, elev, newdata=grd, idp=1)
+r       <- raster(P.idw)
+r.m     <- mask(r, vriClean)
+
+tm_shape(r.m) + 
+  tm_raster(style = "jenks",
+            palette = "viridis", n = 6,
+            title="Predicted Elevation \nwith Power of 1") + 
+  tm_shape(elev) + tm_dots(size=0.2) +
+  tm_legend(legend.position = c("LEFT", "BOTTOM"))
+
+#################################################
+# Leave-one-out validation routine
+IDW.out <- vector(length = length(elev))
+for (i in 1:length(elev)) {
+  IDW.out[i] <- idw(grid_code ~ 1, elev[-i,], elev[i,], idp=1)$var1.pred
+}
+
+# Plot the differences
+OP <- par(pty="s", mar=c(4,3,0,0))
+plot(IDW.out ~ elev$grid_code, asp=1, xlab="Observed", ylab="Predicted", pch=16,
+     col=rgb(0,0,0,0.5))
+abline(lm(IDW.out ~ elev$grid_code), col="red", lw=2,lty=2)
+abline(0,1)
+par(OP)
+sqrt( sum((IDW.out - elev$grid_code)^2) / length(elev))
+
+
+#################################################
+# Implementation of a jackknife technique to estimate a confidence interval at each unsampled point.
+# Create the interpolated surface
+img <- gstat::idw(grid_code~1, elev, newdata=grd, idp=1)
+n   <- length(elev)
+Zi  <- matrix(nrow = length(img$var1.pred), ncol = n)
+
+# Remove a point then interpolate (do this n times for each point)
+st <- stack()
+for (i in 1:n){
+  Z1 <- gstat::idw(grid_code~1, elev[-i,], newdata=grd, idp=1)
+  st <- addLayer(st,raster(Z1,layer=1))
+  # Calculated pseudo-value Z at j
+  Zi[,i] <- n * img$var1.pred - (n-1) * Z1$var1.pred
+}
+
+# Jackknife estimator of parameter Z at location j
+Zj <- as.matrix(apply(Zi, 1, sum, na.rm=T) / n )
+
+# Compute (Zi* - Zj)^2
+c1 <- apply(Zi,2,'-',Zj)            # Compute the difference
+c1 <- apply(c1^2, 1, sum, na.rm=T ) # Sum the square of the difference
+
+# Compute the confidence interval
+CI <- sqrt( 1/(n*(n-1)) * c1)
+
+# Create (CI / interpolated value) raster
+img.sig   <- img
+img.sig$v <- CI /img$var1.pred 
+
+# Clip the confidence raster to Southern California
+r <- raster(img.sig, layer="v")
+r.m <- mask(r, vriClean)
+
+# Plot the map
+tm_shape(r.m) + tm_raster(n=7,title="95% confidence interval \nfor Elevation") +
+  tm_shape(elev) + tm_dots(size=0.2) +
+  tm_legend(legend.position = c("LEFT", "BOTTOM"))
