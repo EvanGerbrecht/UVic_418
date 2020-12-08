@@ -1,0 +1,16 @@
+#These steps will help you combine the outputs 
+#from your spatial interpolation with your income data.
+#Convert your interpolation into a raster and map it:
+r <- raster(r.m)
+sufaceMap <- tm_shape(r.m) + 
+  tm_raster(n=5,palette = "viridis",
+            title="Elev (m)") +
+  tm_shape(elev) + tm_dots(size=0.1)
+sufaceMap
+
+#If you have too many cells, 
+#you can reduce the number by aggregating values
+#agg <- aggregate(yourRasterFromKriging, fact=??, fun=mean)
+
+#Extract average elev for each polygon
+vriClean$Elev <- extract(r.m, vriClean, fun = mean)[,1]
