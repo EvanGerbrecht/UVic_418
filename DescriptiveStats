@@ -1,0 +1,83 @@
+###DESCRIPTIVE STATS#######
+png("Output_Histogram2020.png")
+hist(vriClean$Stand_HT, breaks = 10, main = "Stand Height of Trees in GVWSA", xlab = "Stand Height") #Base R style
+hist(elev$grid_code, breaks = 10, main = "Elevation of GVWSA", xlab = "Elevation") #Base R style
+dev.off()
+#Mean
+meanVri <- mean(vriClean$Stand_HT) #This is going to produce a wrong value (NA) due to a single NA value in data
+meanElev <- mean(elev$grid_code, na.rm = TRUE) #Use na.rm = TRUE to ignore NA values in calculation
+
+#Standard Deviation
+sdVri <- sd(vriClean$Stand_HT, na.rm = TRUE) #Calculate the SD, ignoring NA values
+sdElev <- sd(elev$grid_code, na.rm = TRUE) #Calculate the SD, ignoring NA values only for the summer months
+
+#Mode
+modeVri <- as.numeric(names(sort(table(vriClean$Stand_HT), decreasing = TRUE))[1]) 
+modeElev <- as.numeric(names(sort(table(elev$grid_code), decreasing = TRUE))[1])
+
+#Median
+medVri <- median(vriClean$Stand_HT, na.rm = TRUE)
+medElev <- median(elev$grid_code, na.rm = TRUE)
+
+#Skewness
+skewVri <- skewness(vriClean$Stand_HT, na.rm = TRUE)[1]
+skewElev <- skewness(elev$grid_code, na.rm = TRUE)[1]
+
+#Kurtosis
+kurtVri <- kurtosis(vriClean$Stand_HT, na.rm = TRUE)[1]
+kurtElev <- kurtosis(elev$grid_code, na.rm = TRUE)[1]
+
+#CoV
+CoVVri <- (sdVri / meanVri) * 100
+CoVElev <- (sdElev / meanElev) * 100
+
+#Normal distribution test
+normVri_PVAL <- "Too Large of Sample Size to Perform"
+normElev_PVAL <- shapiro.test(elev$grid_code)$p.value
+
+#####
+#Create a table of descriptive stats
+
+samples = c("Stand Height") #Create an object for the labels
+means = c(meanVri, meanElev) #Create an object for the means
+sd = c(sdVri, sdElev) #Create an object for the standard deviations
+median = c(medVri, medElev) #Create an object for the medians
+mode <- c(modeVri, modeElev) #Create an object for the modes
+skewness <- c(skewVri, skewElev) #Create an object for the skewness
+kurtosis <- c(kurtVri, kurtElev) #Create an object for the kurtosis
+CoV <- c(CoVVri, CoVElev) #Create an object for the CoV
+normality <- c(normVri_PVAL, normElev_PVAL) #Create an object for the normality PVALUE
+
+##Check table values for sigfigs?
+skewness <- round(skewness, 2)
+data.for.table1 = data.frame(samples, means, sd, median, mode)
+data.for.table2 = data.frame(samples, skewness, kurtosis, CoV, normality)
+
+#Make table 1
+table1 <- tableGrob(data.for.table1, rows = c("","")) #make a table "Graphical Object" (GrOb) 
+t1Caption <- textGrob("Table 1: Measures of Central Tendancies", gp = gpar(fontsize = 09))
+padding <- unit(5, "mm")
+
+table1 <- gtable_add_rows(table1, 
+                          heights = grobHeight(t1Caption) + padding, 
+                          pos = 0)
+
+table1 <- gtable_add_grob(table1,
+                          t1Caption, t = 1, l = 2, r = ncol(data.for.table1) + 1)
+
+
+table2 <- tableGrob(data.for.table2, rows = c("",""))
+t2Caption <- textGrob("Table 2: Measures of Relative Position", gp = gpar(fontsize = 09))
+padding <- unit(5, "mm")
+
+table2 <- gtable_add_rows(table2, 
+                          heights = grobHeight(t2Caption) + padding, 
+                          pos = 0)
+
+table2 <- gtable_add_grob(table2,
+                          t2Caption, t = 1, l = 2, r = ncol(data.for.table2) + 1)
+
+
+
+grid.arrange(table1, newpage = TRUE)
+grid.arrange(table2, newpage = TRUE)
