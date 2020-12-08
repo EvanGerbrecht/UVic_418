@@ -1,0 +1,43 @@
+#Set working directory
+dir <- ""
+setwd(dir)
+
+#Reading in elevation dataset
+elev <- readOGR("./", "ElevSample") #Read in data
+elev <- spTransform(elev, CRS("+init=epsg:26910"))
+
+#Reading in VRI data
+VRI <- readOGR("./", "WatershedVRI") #Read in shapefile
+VRI <- spTransform(VRI, CRS("+init=epsg:26910"))
+head(VRI@data)
+vriCleanCols <- c("FID_VEG_CO", "POLYGON_ID", "PROJ_AGE_1",
+                  "SITE_INDEX", "SPECIES__4", "SPECIES__5",
+                  "PROJ_HEI_1", "SPECIES_PC", "SPECIES__6",
+                  "VRI_LIVE_S", "BASAL_AREA", "WHOLE_STEM",
+                  "CROWN_CL_1")
+vriClean <- VRI[,vriCleanCols]
+newNames <- c("FID", "PolyID", "Stand_Age", "Site_Index",
+              "CoDom_Sp", "Dom_Sp", "Stand_HT", "DomSP_Perc", 
+              "CDomSP_Perc", "Stand_Dens", "Stand_BA", "Stand_StemBio", "Stand_CrownCl")
+colnames(vriClean@data) <- newNames
+head(vriClean@data)
+vriCleanStand_HT <- vriClean[!is.na(vriClean@data$Stand_HT), ]
+map_Bio <- tm_shape(vriClean) +
+  tm_polygons() +
+  tm_scale_bar(position=c("left", "bottom")) +
+  tm_minimap(server = NA, position = c("right", "top"), toggle = TRUE)
+tmap_mode("view")
+map_Bio
+#Create choropleth map of height
+map_Bio <- tm_shape(vriClean) +
+  tm_polygons(col = "Stand_HT",
+              title = "Stand Height",
+              style = "jenks",
+              palette = "viridis", n = 6) +
+  tm_legend(legend.position = c("LEFT", "BOTTOM")) + 
+  tm_compass(type="arrow", position=c("right", "top"), show.labels = 3)+ 
+  tm_scale_bar(position=c("right", "bottom"))
+
+map_Bio
+###########
+vriClean2 <- sp.na.omit(vriClean, col.name = "Elev", margin = 1)
